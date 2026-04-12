@@ -1,0 +1,130 @@
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+
+variables:
+  buildConfiguration: Release
+  backendRoot: duabusiness
+  solutionFile: $(backendRoot)/DuaBusiness.sln
+  artifactName: duabusiness-drop
+
+stages:
+  - stage: BuildAndTest
+    displayName: Build and test backend
+    jobs:
+      - job: Build
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: UseDotNet@2
+            displayName: Use .NET 8 SDK
+            inputs:
+              packageType: sdk
+              version: 8.0.x
+
+          - script: dotnet restore $(solutionFile)
+            displayName: Restore solution
+
+          - script: dotnet build $(solutionFile) --configuration $(buildConfiguration) --no-restore
+            displayName: Build solution
+
+          - script: dotnet test $(solutionFile) --configuration $(buildConfiguration) --no-build
+            displayName: Run tests
+
+          - script: dotnet publish $(backendRoot)/src/DuaBusiness.Api/DuaBusiness.Api.csproj --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/api
+            displayName: Publish API
+
+          - script: dotnet publish $(backendRoot)/src/DuaBusiness.Worker/DuaBusiness.Worker.csproj --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/worker
+            displayName: Publish worker
+
+          - publish: $(Build.ArtifactStagingDirectory)
+            artifact: $(artifactName)
+            displayName: Publish deployment artifact
+
+  - stage: DeployDev
+    displayName: Deploy to development
+    dependsOn: BuildAndTest
+    condition: succeeded()
+    jobs:
+      - deployment: DeployDev
+        environment: dua-streamliner-dev
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: $(artifactName)
+                - script: |
+                    az deployment group create \
+                      --resource-group $(DEV_RESOURCE_GROUP) \
+                      --template-file $(backendRoot)/infra/bicep/main.bicep \
+                      --parameters environmentName=dev
+                  displayName: Provision development infrastructure
+                - task: AzureWebApp@1
+                  displayName: Deploy API to App Service
+                  inputs:
+                    azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                    appType: webAppLinux
+                    appName: $(DEV_API_APP_NAME)
+                    package: $(Pipeline.Workspace)/$(artifactName)/api
+                - task: AzureWebApp@1
+                  displayName: Deploy worker to App Service
+                  inputs:
+                    azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                    appType: webAppLinux
+                    appName: $(DEV_WORKER_APP_NAME)
+                    package: $(Pipeline.Workspace)/$(artifactName)/worker
+
+  - stage: DeployStage
+    displayName: Deploy to stage
+    dependsOn: DeployDev
+    condition: succeeded()
+    jobs:
+      - deployment: DeployStage
+        environment: dua-streamliner-stage
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: $(artifactName)
+                - script: |
+                    az deployment group create \
+                      --resource-group $(STAGE_RESOURCE_GROUP) \
+                      --template-file $(backendRoot)/infra/bicep/main.bicep \
+                      --parameters environmentName=stage
+                  displayName: Provision stage infrastructure
+                - script: |
+                    echo "Stage slot deployment and smoke validation are executed here."
+                  displayName: Deploy stage slots
+
+  - stage: DeployProd
+    displayName: Deploy to production
+    dependsOn: DeployStage
+    condition: succeeded()
+    jobs:
+      - deployment: DeployProd
+        environment: dua-streamliner-prod
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: $(artifactName)
+                - script: |
+                    az deployment group create \
+                      --resource-group $(PROD_RESOURCE_GROUP) \
+                      --template-file $(backendRoot)/infra/bicep/main.bicep \
+                      --parameters environmentName=prod
+                  displayName: Provision production infrastructure
+                - script: |
+                    echo "Production slot swap, health probes, and rollback gates are executed here."
+                  displayName: Execute production release

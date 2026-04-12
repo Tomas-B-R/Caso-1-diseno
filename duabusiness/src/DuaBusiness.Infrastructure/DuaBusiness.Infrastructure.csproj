@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\DuaBusiness.Application\DuaBusiness.Application.csproj" />
+    <ProjectReference Include="..\DuaBusiness.Domain\DuaBusiness.Domain.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.8" />
+  </ItemGroup>
+</Project>

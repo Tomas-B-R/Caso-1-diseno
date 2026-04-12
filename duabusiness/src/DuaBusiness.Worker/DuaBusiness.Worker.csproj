@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <ItemGroup>
+    <ProjectReference Include="..\DuaBusiness.Application\DuaBusiness.Application.csproj" />
+    <ProjectReference Include="..\DuaBusiness.Infrastructure\DuaBusiness.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

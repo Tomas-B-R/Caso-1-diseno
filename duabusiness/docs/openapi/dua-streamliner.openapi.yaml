@@ -1,0 +1,111 @@
+openapi: 3.0.3
+info:
+  title: DUA Streamliner API
+  version: 1.0.0
+  description: >
+    Skeleton OpenAPI contract for the modular-monolith backend that receives
+    source documents, orchestrates extraction and validation, and exposes the
+    lifecycle of DUA generation jobs.
+servers:
+  - url: https://api.duastreamliner.example.com/api/v1
+paths:
+  /processing-jobs:
+    post:
+      summary: Create a new processing job
+      operationId: createProcessingJob
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                templateId:
+                  type: string
+                  format: uuid
+                clientReference:
+                  type: string
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        "202":
+          description: Job accepted for processing
+  /processing-jobs/{jobId}:
+    get:
+      summary: Get the status of a processing job
+      operationId: getProcessingJob
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Job status
+  /processing-jobs/{jobId}/generate:
+    post:
+      summary: Generate the final DUA document for a processed job
+      operationId: generateDuaDocument
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "202":
+          description: Generation scheduled
+  /processing-jobs/{jobId}/download:
+    get:
+      summary: Retrieve the generated DUA document reference
+      operationId: downloadGeneratedDua
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Download details for the generated document
+  /templates/{templateId}:
+    put:
+      summary: Create or update a DUA template definition
+      operationId: updateTemplate
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Template definition updated
+    get:
+      summary: Retrieve the active template configuration
+      operationId: getTemplate
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Template definition
+  /notification-subscriptions:
+    post:
+      summary: Register a callback or push subscription for async events
+      operationId: createNotificationSubscription
+      responses:
+        "201":
+          description: Subscription created
